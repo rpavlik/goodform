@@ -3,18 +3,19 @@ require "LuaXml"
 
 
 
-
-function isFieldStart(elem)
-	if type(elem) == "table" and elem:tag() == "w:r" then
-		local fldChar = elem:find("w:fldChar", "w:fldCharType", "begin")
-		if fldChar ~= nil then
-			local name = fldChar:find("w:name")
-			if name ~= nil then
-				return name["w:val"]
-			end
+function fldCharTypeChecker(fldCharType)
+	return function (elem)
+		if type(elem) == "table" and elem:tag() == "w:r" then
+			local fldChar = elem:find("w:fldChar", "w:fldCharType", fldCharType)
+			return fldChar ~= nil
 		end
+		return false
 	end
 end
+
+local isFieldStart = fldCharTypeChecker("begin")
+local isFieldSeparate = fldCharTypeChecker("separate")
+local isFieldEnd = fldCharTypeChecker("end")
 
 function handleField(block, runID)
 	local name = block[runID]
@@ -24,25 +25,36 @@ function handleField(block, runID)
 	local separateRunID
 	local contentRunID
 	local endRunID
+	print("Starting to look at " .. tostring(runID))
+	print(block[runID])
 	for childnum=runID, #block do
-		if block[childnum]:tag() == "w:r" then
-			if separateRunID == nil
-				and block[childnum]:find("w:fldChar", "w:fldCharType", "separate") then
-					separateRunID = childnum
-			elseif contentRunID == nil then
+		print("Child " .. tostring(childnum))
+		if separateRunID == nil then
+			if isFieldSeparate(block[childnum]) then
+				print("Got separate")
+				separateRunID = childnum
+			end
+		elseif contentRunID == nil then
+			if type(block[childnum]) == "table" and block[childnum]:tag() == "w:r" then
+				print("Got content")
 				contentRunID = childnum
-			elseif block[childnum]:find("w:fldChar", "w:fldCharType", "end") then
+			end
+		elseif endRunID == nil then
+			if isFieldEnd(block[childnum]) then
+
+				print("Got end")
 				endRunID = childnum
 			end
 		end
 	end
+
 	if separateRunID == nil then
 		print("Got field", name, "without a separate fldchartype.", block)
 		return
 	end
-	contentRunID = separateRunID + 1
+
 	local contentRun = block[contentRunID]
-	print("Got field", name, "with content", contentRun)
+	print("Got field", name, "with fldChars", runID, separateRunID, contentRunID, endRunID, " and content", contentRun)
 
 end
 
@@ -50,8 +62,7 @@ function recursivelyFindFields(elem)
 	--print(elem:tag())
 	local fieldname
 	for childnum, child in ipairs(elem) do
-		fieldname = isFieldStart(child)
-		if fieldname ~= nil then
+		if isFieldStart(child) then
 			--print("Found start of field", fieldname)
 			handleField(elem, childnum)
 		elseif type(child) == "table" then
