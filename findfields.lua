@@ -1,4 +1,6 @@
 
+-- Uses LuaXml http://viremo.eludi.net/LuaXML/ and LuaZip http://www.keplerproject.org/luazip/manual.html
+
 require "LuaXml"
 
 
