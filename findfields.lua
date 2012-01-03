@@ -1,6 +1,9 @@
 
 -- Uses LuaXml http://viremo.eludi.net/LuaXML/ and LuaZip http://www.keplerproject.org/luazip/manual.html
 
+-- Some WordprocessingML docs that might be useful: search for "complex fields" here:
+-- http://rep.oio.dk/microsoft.com/officeschemas/wordprocessingml_article.htm
+
 require "LuaXml"
 
 
