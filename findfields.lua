@@ -70,12 +70,6 @@ function recursivelyFindFields(elem)
 		end
 	end
 end
---[[
-for k,v in pairs(xfile) do
-	print(k)
-end
-print(xfile:tag())]]
---print(xfile)
 
 require "zip"
 local zfile, err = zip.open(arg[1] or "minimalform.docx")
@@ -91,6 +85,5 @@ end
 local xfile = xml.eval(zdocfile:read("*a"))
 zdocfile:close()
 zfile:close()
-local body = xfile[1]
 
 recursivelyFindFields(xfile)
