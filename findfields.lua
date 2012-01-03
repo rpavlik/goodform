@@ -65,7 +65,21 @@ for k,v in pairs(xfile) do
 end
 print(xfile:tag())]]
 --print(xfile)
-local xfile = xml.load("document.xml")
+
+require "zip"
+local zfile, err = zip.open(arg[1] or "minimalform.docx")
+if not zfile then
+	error("Could not open zip file: " .. err)
+end
+
+local zdocfile, err = zfile:open("word/document.xml")
+if not zdocfile then
+	error("Could not open word/document.xml in zip file: " .. err)
+end
+
+local xfile = xml.eval(zdocfile:read("*a"))
+zdocfile:close()
+zfile:close()
 local body = xfile[1]
 
 recursivelyFindFields(xfile)
