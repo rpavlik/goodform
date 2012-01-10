@@ -90,41 +90,47 @@ local function Field(block, startID)
 	return nil
 end
 
-
---- Temporary place to put all stuff.
-local allfields = {}
-
-function recursivelyFindFields(elem)
+local function recursivelyFindFields(elem)
 	--print(elem:tag())
 	local fieldname
 	for childnum, child in ipairs(elem) do
 		if isFieldStart(child) then
 			--print("Found start of field", fieldname)
-			table.insert(allfields, Field(elem, childnum))
+			local ret = Field(elem, childnum)
+			if ret ~= nil then
+				coroutine.yield(ret)
+			end
 		elseif type(child) == "table" then
 			recursivelyFindFields(child)
 		end
 	end
 end
 
-require "zip"
-local zfile, err = zip.open(arg[1] or "minimalform.docx")
-if not zfile then
-	error("Could not open zip file: " .. err)
+local iterateFields = function(elem)
+	return coroutine.wrap(function() recursivelyFindFields(elem) end)
 end
 
-local zdocfile, err = zfile:open("word/document.xml")
-if not zdocfile then
-	error("Could not open word/document.xml in zip file: " .. err)
+local loadDOCX = function(fn)
+	local zip = require "zip"
+	local zfile, err = zip.open(fn)
+	if not zfile then
+		error("Could not open zip file: " .. err)
+	end
+
+	local zdocfile, err = zfile:open("word/document.xml")
+	if not zdocfile then
+		zfile:close()
+		error("Could not open word/document.xml in zip file: " .. err)
+	end
+
+	local xfile = xml.eval(zdocfile:read("*a"))
+	zdocfile:close()
+	zfile:close()
+	return xfile
 end
 
-local xfile = xml.eval(zdocfile:read("*a"))
-zdocfile:close()
-zfile:close()
-
-recursivelyFindFields(xfile)
-
-for i, field in ipairs(allfields) do
-	print(i, field)
-end
+return {
+	["loadDOCX"] = loadDOCX,
+	["iterateFields"] = iterateFields
+}
 
