@@ -8,7 +8,16 @@ require "LuaXml"
 
 
 
-function fldCharTypeChecker(fldCharType)
+
+local function findWithPredicate(list, first, last, predicate)
+	for childnum=first, last do
+		if predicate(list[childnum]) then
+			return childnum, list[childnum]
+		end
+	end
+end
+
+local function fldCharTypeChecker(fldCharType)
 	return function (elem)
 		if type(elem) == "table" and elem:tag() == "w:r" then
 			local fldChar = elem:find("w:fldChar", "w:fldCharType", fldCharType)
@@ -22,46 +31,68 @@ local isFieldStart = fldCharTypeChecker("begin")
 local isFieldSeparate = fldCharTypeChecker("separate")
 local isFieldEnd = fldCharTypeChecker("end")
 
-function handleField(block, runID)
-	local name = block[runID]
-		:find("w:fldChar", "w:fldCharType", "begin")
-		:find("w:name")
-		["w:val"]
-	local separateRunID
-	local contentRunID
-	local endRunID
-	print("Starting to look at " .. tostring(runID))
-	print(block[runID])
-	for childnum=runID, #block do
-		print("Child " .. tostring(childnum))
-		if separateRunID == nil then
-			if isFieldSeparate(block[childnum]) then
-				print("Got separate")
-				separateRunID = childnum
-			end
-		elseif contentRunID == nil then
-			if type(block[childnum]) == "table" and block[childnum]:tag() == "w:r" then
-				print("Got content")
-				contentRunID = childnum
-			end
-		elseif endRunID == nil then
-			if isFieldEnd(block[childnum]) then
+local isRun = function(elem)
+	return type(elem) == "table" and elem:tag() == "w:r"
+end
 
-				print("Got end")
-				endRunID = childnum
+local FieldTypes = {
+	["w:textInput"] = {
+		init = function(self)
+			self.separateID = findWithPredicate(self.block, self.startID, self.endID, isFieldSeparate)
+			self.contentID = findWithPredicate(self.block, self.separateID, self.endID, isRun)
+			return self
+		end,
+		__tostring = function(self)
+			return "Text Input: name='" .. self.name .. "'"
+		end
+	},
+	["w:checkBox"] = {
+		init = function(self)
+			return self
+		end,
+		__tostring = function(self)
+			return "Checkbox: name='" .. self.name .. "'"
+		end
+	},
+	["w:ddList"] = {
+		init = function(self, elem)
+			self.entries = {}
+			for _, v in ipairs(elem) do
+				table.insert(self.entries, v["w:val"])
 			end
+			return self
+		end,
+		__tostring = function(self)
+			return "Drop-down list: name='" .. self.name .. "', entries: " .. table.concat(self.entries, ", ")
+		end
+	}
+}
+
+local function Field(block, startID)
+	assert(isFieldStart(block[startID]), "Field must be initialized with a block and a fldchar begin")
+	local self = {
+		["block"] = block,
+		["startID"] = startID,
+		["endID"] = findWithPredicate(block, startID, #block, isFieldEnd),
+		["name"] = block[startID]
+			:find("w:fldChar", "w:fldCharType", "begin")
+			:find("w:name")
+			["w:val"]
+	}
+	local ffData = block[startID]:find("w:ffData")
+	for _, elem in ipairs(ffData) do
+		if FieldTypes[elem:tag()] ~= nil then
+			setmetatable(self, FieldTypes[elem:tag()])
+			return FieldTypes[elem:tag()].init(self, elem)
 		end
 	end
-
-	if separateRunID == nil then
-		print("Got field", name, "without a separate fldchartype.", block)
-		return
-	end
-
-	local contentRun = block[contentRunID]
-	print("Got field", name, "with fldChars", runID, separateRunID, contentRunID, endRunID, " and content", contentRun)
-
+	print "Got a form field, but couldn't determine the type!"
+	return nil
 end
+
+
+--- Temporary place to put all stuff.
+local allfields = {}
 
 function recursivelyFindFields(elem)
 	--print(elem:tag())
@@ -69,7 +100,7 @@ function recursivelyFindFields(elem)
 	for childnum, child in ipairs(elem) do
 		if isFieldStart(child) then
 			--print("Found start of field", fieldname)
-			handleField(elem, childnum)
+			table.insert(allfields, Field(elem, childnum))
 		elseif type(child) == "table" then
 			recursivelyFindFields(child)
 		end
@@ -92,3 +123,8 @@ zdocfile:close()
 zfile:close()
 
 recursivelyFindFields(xfile)
+
+for i, field in ipairs(allfields) do
+	print(i, field)
+end
+
